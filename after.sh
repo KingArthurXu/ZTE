@@ -48,75 +48,75 @@ LOGGER="tee -a $LOGDIR/$LOGFILE"
 function delete_from_viom
 {
     local NEW_VIOM
-	local NEW_HOSTNAME
-	NEW_VIOM=${1}
-	NEW_HOSTNAME=${2}
-	DEPLOY_SCRIPT="${NEW_VIOM}.pl"
-	DEPLOY_SCRIPT="$(dirname "${BASH_SOURCE}")/"$DEPLOY_SCRIPT
-	
+    local NEW_HOSTNAME
+    NEW_VIOM=${1}
+    NEW_HOSTNAME=${2}
+    DEPLOY_SCRIPT="${NEW_VIOM}.pl"
+    DEPLOY_SCRIPT="$(dirname "${BASH_SOURCE}")/"$DEPLOY_SCRIPT
+
     #
     # Check ssh is working
     #
     OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM date 2>&1)
     if [[ $? -ne 0 ]]; then
-        echo -e "WARNING : ssh ${NEW_VIOM} failed" | $LOGGER        
+        echo -e "WARNING : ssh ${NEW_VIOM} failed" | $LOGGER
     fi
 
-	#
-    # Print parameter information 
-    #	
-	echo -e "INFO  : Parameter Information" | $LOGGER
-	echo -e "INFO  : NEW_VIOM" $NEW_VIOM "\nINFO  : NEW_HOSTNAME" $NEW_HOSTNAME | $LOGGER
-	
+    #
+    # Print parameter information
+    #
+    echo -e "INFO  : Parameter Information" | $LOGGER
+    echo -e "INFO  : NEW_VIOM" $NEW_VIOM "\nINFO  : NEW_HOSTNAME" $NEW_HOSTNAME | $LOGGER
+
     #
     # ssh to NEW_VIOM to delete old information
     #
-	echo "INFO  : Remove Old Registered Information" | $LOGGER
-	echo "INFO  : ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM \"$VOMADM host-mgmt --remove --host $NEW_HOSTNAME -f 2>&1\"" | $LOGGER
-	OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM "$VOMADM host-mgmt --remove --host $NEW_HOSTNAME -f 2>&1")
-	if [[ $? -ne 0 ]]; then
-		echo -e "WARNING : Remove Registered Server Failed. (Maybe Not Registered Before, Continue!)" | $LOGGER
-	fi
-	echo -e "$OUTPUT" | $LOGGER
-	sleep 3
+    echo "INFO  : Remove Old Registered Information" | $LOGGER
+    echo "INFO  : ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM \"$VOMADM host-mgmt --remove --host $NEW_HOSTNAME -f 2>&1\"" | $LOGGER
+    OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM "$VOMADM host-mgmt --remove --host $NEW_HOSTNAME -f 2>&1")
+    if [[ $? -ne 0 ]]; then
+        echo -e "WARNING : Remove Registered Server Failed. (Maybe Not Registered Before, Continue!)" | $LOGGER
+    fi
+    echo -e "$OUTPUT" | $LOGGER
+    sleep 3
 
-	#
-    # START VIOM agent 
     #
-	echo "INFO  : Start VIOM Agent ... " | $LOGGER
-	echo "INFO  : $XPRTLDCTRL start 2>&1" | $LOGGER
-	OUTPUT=$($XPRTLDCTRL start 2>&1)
-	if [[ $? -ne 0 ]]; then
-		echo "WARNING : Start Agent Failed" | $LOGGER
-		echo -e "$OUTPUT" | $LOGGER
-	fi
-	sleep 3
-    
-	#
-    # Redeploy 
+    # START VIOM agent
     #
-	echo "INFO  : Redeploy And Register" | $LOGGER
-	echo "INFO  : $DEPLOY_SCRIPT 2>&1" | $LOGGER
-	OUTPUT=$($DEPLOY_SCRIPT 2>&1)
-	if [[ $? -ne 0 ]]; then
-		echo "ERROR : Redeploy Failed" | $LOGGER
-		echo -e "$OUTPUT" | $LOGGER
-		return 1
-	fi
-	echo -e "$OUTPUT" | $LOGGER
-    
-	#
+    echo "INFO  : Start VIOM Agent ... " | $LOGGER
+    echo "INFO  : $XPRTLDCTRL start 2>&1" | $LOGGER
+    OUTPUT=$($XPRTLDCTRL start 2>&1)
+    if [[ $? -ne 0 ]]; then
+        echo "WARNING : Start Agent Failed" | $LOGGER
+        echo -e "$OUTPUT" | $LOGGER
+    fi
+    sleep 3
+
+    #
+    # Redeploy
+    #
+    echo "INFO  : Redeploy And Register" | $LOGGER
+    echo "INFO  : $DEPLOY_SCRIPT 2>&1" | $LOGGER
+    OUTPUT=$($DEPLOY_SCRIPT 2>&1)
+    if [[ $? -ne 0 ]]; then
+        echo "ERROR : Redeploy Failed" | $LOGGER
+        echo -e "$OUTPUT" | $LOGGER
+        return 1
+    fi
+    echo -e "$OUTPUT" | $LOGGER
+
+    #
     # ssh to NEW_VIOM to refresh Storage Mapping Information
     #
-	echo "INFO  : Refresh Storage Mapping Information" | $LOGGER
-	REFRESH_VOM="/opt/VRTSsfmh/bin/perl /opt/VRTSsfmh/bin/mh_driver.pl --family VMWARE --hidden --id VMWARE_FAMILY "
-	echo "INFO  : ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM \"$REFRESH_VOM 2>&1\"" | $LOGGER
-	OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM "$REFRESH_VOM 2>&1")
-	if [[ $? -ne 0 ]]; then
-		echo -e "WARNING : Refresh Storage Mapping Information Failed, (Maybe it is already running, Continue!)" | $LOGGER
-	fi
-	echo -e "$OUTPUT" | $LOGGER
-	sleep 3
+    echo "INFO  : Refresh Storage Mapping Information" | $LOGGER
+    REFRESH_VOM="/opt/VRTSsfmh/bin/perl /opt/VRTSsfmh/bin/mh_driver.pl --family VMWARE --hidden --id VMWARE_FAMILY "
+    echo "INFO  : ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM \"$REFRESH_VOM 2>&1\"" | $LOGGER
+    OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM "$REFRESH_VOM 2>&1")
+    if [[ $? -ne 0 ]]; then
+        echo -e "WARNING : Refresh Storage Mapping Information Failed, (Maybe it is already running, Continue!)" | $LOGGER
+    fi
+    echo -e "$OUTPUT" | $LOGGER
+    sleep 3
 }
 
 #
@@ -126,18 +126,18 @@ if [ $# -lt 2 ]; then
     echo -e "Usage:" $BASH_SOURCE "VIOM_SERVER_NAME" "NEW_HOSTNAME"
     exit 1
 else
-	echo -e $(date) | $LOGGER
-	echo -e "INFO  : Begin to Register MH to VIOM" | $LOGGER
+    echo -e $(date) | $LOGGER
+    echo -e "INFO  : Begin to Register MH to VIOM" | $LOGGER
  
     #
-    # Change VCS VCS_START to 1 
+    # Change VCS VCS_START to 1
     #
     echo "INFO  : Change VCS <VCS_START=1>" | $LOGGER
     echo "INFO  : sed -i \"s/VCS_START=[01]/VCS_START=1/g\" $SYSCONFIG_VCS" | $LOGGER
     sed -i "s/VCS_START=[01]/VCS_START=1/g" $SYSCONFIG_VCS
-	
+
     #
-    #  Check HAD process, stop, restart VCS using new config 
+    #  Check HAD process, stop, restart VCS using new config
     #
     if $PIDOF $HAD &> /dev/null; then
         echo "WARNING : VCS HAD Processes Is Running" | $LOGGER
@@ -156,14 +156,14 @@ else
         echo -e "INFO  : $OUTPUT" | $LOGGER
     fi
 
-	delete_from_viom $1 $2
-	if [[ $? -eq 0 ]]; then
-		echo -e $(date) | $LOGGER
-		echo -e "INFO  : Success\n\n\n" | $LOGGER
-		exit 0
-	else 
-		echo -e $(date) | $LOGGER
-		echo -e "ERROR : Failed\n\n\n" | $LOGGER
-		exit 1
-	fi
+    delete_from_viom $1 $2
+    if [[ $? -eq 0 ]]; then
+        echo -e $(date) | $LOGGER
+        echo -e "INFO  : Success\n\n\n" | $LOGGER
+        exit 0
+    else
+        echo -e $(date) | $LOGGER
+        echo -e "ERROR : Failed\n\n\n" | $LOGGER
+        exit 1
+    fi
 fi
