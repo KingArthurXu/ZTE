@@ -26,19 +26,24 @@
 # -- Slient execute, exit only redeploy failed 2018/04/20
 # -- Change some ERROR to WARNING 2018/08/08
 # -- Change hastart to hastart -onenode 2018/08/16
+# -- Hastop when VCS is starting, wait for 30s 2018/09/18
+# -- change VCS_START=1 2018/09/18
 
 VIOM_CF_PATH="/etc/default/sfm_resolv.conf"
+SYSCONFIG_VCS="/etc/sysconfig/vcs"
 
 VOMADM="/opt/VRTSsfmh/bin/vomadm"
 XPRTLDCTRL="/opt/VRTSsfmh/adm/xprtldctrl"
 HAD="/opt/VRTSvcs/bin/had"
 PIDOF="pidof"
 HASTART="/opt/VRTS/bin/hastart -onenode"
+HASTOP="/opt/VRTS/bin/hastop -local -force"
 
 LOGDIR=$(dirname "${BASH_SOURCE}")
 LOGFILE=$(basename "${BASH_SOURCE}" .sh).log
 touch "${LOGDIR}/${LOGFILE}"
 LOGGER="tee -a $LOGDIR/$LOGFILE"
+
 
 function delete_from_viom
 {
@@ -112,33 +117,45 @@ function delete_from_viom
 	fi
 	echo -e "$OUTPUT" | $LOGGER
 	sleep 3
-	
 }
 
 #
 # Check parameter & show usage
 #
 if [ $# -lt 2 ]; then
-        echo -e "Usage:" $BASH_SOURCE "VIOM_SERVER_NAME" "NEW_HOSTNAME" 
-        exit 1
+    echo -e "Usage:" $BASH_SOURCE "VIOM_SERVER_NAME" "NEW_HOSTNAME"
+    exit 1
 else
 	echo -e $(date) | $LOGGER
 	echo -e "INFO  : Begin to Register MH to VIOM" | $LOGGER
-
+ 
     #
-    #  Check HAD process, if not, start VCS using new config 
+    # Change VCS VCS_START to 1 
+    #
+    echo "INFO  : Change VCS <VCS_START=1>" | $LOGGER
+    echo "INFO  : sed -i \"s/VCS_START=[01]/VCS_START=1/g\" $SYSCONFIG_VCS" | $LOGGER
+    sed -i "s/VCS_START=[01]/VCS_START=1/g" $SYSCONFIG_VCS
+	
+    #
+    #  Check HAD process, stop, restart VCS using new config 
     #
     if $PIDOF $HAD &> /dev/null; then
         echo "WARNING : VCS HAD Processes Is Running" | $LOGGER
-	else
-		echo "INFO  : Try to start VCS --#hastart--" | $LOGGER
-		OUTPUT=$($HASTART 2>&1)
-		if [[ $? -ne 0 ]]; then
-			echo -e "WARNING : hastart Failed" | $LOGGER
-			echo -e "INFO  : $OUTPUT" | $LOGGER
-		fi
-	fi
-	
+        OUTPUT=$($HASTOP 2>&1)
+        if [[ $? -ne 0 ]]; then
+            echo -e "WARNING : hastop Failed" | $LOGGER
+            echo -e "INFO  : $OUTPUT" | $LOGGER
+        fi
+        sleep 30
+    fi
+
+    echo "INFO  : Try to start VCS --#hastart--" | $LOGGER
+    OUTPUT=$($HASTART 2>&1)
+    if [[ $? -ne 0 ]]; then
+        echo -e "WARNING : hastart Failed" | $LOGGER
+        echo -e "INFO  : $OUTPUT" | $LOGGER
+    fi
+
 	delete_from_viom $1 $2
 	if [[ $? -eq 0 ]]; then
 		echo -e $(date) | $LOGGER
@@ -150,4 +167,3 @@ else
 		exit 1
 	fi
 fi
-

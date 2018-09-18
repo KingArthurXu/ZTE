@@ -25,18 +25,20 @@
 # -- fix OLD_VIOM_IP error if there are commented line(#)
 # -- Slient execute, exit only VCS Config does not exists 20180420
 # -- Change some ERROR to WARNING 20180808
+# -- Check & change VCS Config at first step
+# -- change VCS_START=1 2018/09/18
 
 SYSNAME_PATH="/etc/VRTSvcs/conf/sysname"
 MAIN_CF_PATH="/etc/VRTSvcs/conf/config/main.cf"
 VIOM_CF_PATH="/etc/default/sfm_resolv.conf"
+SYSCONFIG_VCS="/etc/sysconfig/vcs"
 
 VOMADM="/opt/VRTSsfmh/bin/vomadm"
 XPRTLDCTRL="/opt/VRTSsfmh/adm/xprtldctrl"
 
-
 HAD="/opt/VRTSvcs/bin/had"
 PIDOF="pidof"
-HASTOP="/opt/VRTS/bin/hastop"
+HASTOP="/opt/VRTS/bin/hastop -local -force"
 HASTART="/opt/VRTS/bin/hastart"
 
 LOGDIR=$(dirname "${BASH_SOURCE}")
@@ -97,7 +99,7 @@ function change_hostname
         echo "INFO  : VCS HAD Processes Is Running" | $LOGGER
 		# Stop VCS 
 		echo "INFO  : Try to stop VCS --#hastop-- " | $LOGGER
-		OUTPUT=$($HASTOP -local -force 2>&1)
+		OUTPUT=$($HASTOP 2>&1)
 		if [[ $? -ne 0 ]]; then
 			echo -e "WARNING : hastop failed" | $LOGGER
 			echo -e "$OUTPUT" | $LOGGER
@@ -141,18 +143,25 @@ function change_hostname
 		echo -e "$OUTPUT" | $LOGGER
 	fi
 	sleep 3
-
 }
 
 #
 # main()
 #
 if [ $# -lt 2 ]; then
-        echo -e $BASH_SOURCE "VIOM_SERVER_NAME" "NEW_HOSTNAME"
-        exit 1
+    echo -e $BASH_SOURCE "VIOM_SERVER_NAME" "NEW_HOSTNAME"
+    exit 1
 else
 	echo -e $(date) | $LOGGER
 	echo -e "INFO  : Start ..." | $LOGGER
+    
+	#
+    # Change VCS VCS_START to 0 
+    #
+    echo "INFO  : Change VCS <VCS_START=0>" | $LOGGER
+    echo "INFO  : sed -i \"s/VCS_START=[01]/VCS_START=0/g\" $SYSCONFIG_VCS" | $LOGGER
+    sed -i "s/VCS_START=[01]/VCS_START=0/g" $SYSCONFIG_VCS
+  
 	change_hostname $1 $2
 	if [[ $? -eq 0 ]]; then
 		echo -e $(date) | $LOGGER
