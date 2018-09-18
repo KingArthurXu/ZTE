@@ -25,6 +25,7 @@
 # -- ssh to NEW_VIOM to refresh Storage Mapping Information 2018/04/02
 # -- Slient execute, exit only redeploy failed 2018/04/20
 # -- Change some ERROR to WARNING 2018/08/08
+# -- Change hastart to hastart -onenode 2018/08/16
 
 VIOM_CF_PATH="/etc/default/sfm_resolv.conf"
 
@@ -32,7 +33,7 @@ VOMADM="/opt/VRTSsfmh/bin/vomadm"
 XPRTLDCTRL="/opt/VRTSsfmh/adm/xprtldctrl"
 HAD="/opt/VRTSvcs/bin/had"
 PIDOF="pidof"
-HASTART="/opt/VRTS/bin/hastart"
+HASTART="/opt/VRTS/bin/hastart -onenode"
 
 LOGDIR=$(dirname "${BASH_SOURCE}")
 LOGFILE=$(basename "${BASH_SOURCE}" .sh).log
@@ -149,3 +150,4 @@ else
 		exit 1
 	fi
 fi
+
