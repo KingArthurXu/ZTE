@@ -19,18 +19,20 @@
 # Documentation by the U.S. Government shall be solely in accordance with
 # the terms of this Agreement. $
 #
-# v1.1.1
+# v1.1.2
 # -- write <name>.log instead of logger
 # -- remove hastart
 # -- fix OLD_VIOM_IP error if there are commented line(#)
-
-#SYSNAME_PATH="/root/conf/sysname"
-#MAIN_CF_PATH="/root/conf/main.cf"
-#VIOM_CF_PATH="/root/conf/sfm_resolv.conf"
+# -- Slient execute, exit only VCS Config does not exists 20180420
+# -- Change some ERROR to WARNING 20180808
 
 SYSNAME_PATH="/etc/VRTSvcs/conf/sysname"
 MAIN_CF_PATH="/etc/VRTSvcs/conf/config/main.cf"
 VIOM_CF_PATH="/etc/default/sfm_resolv.conf"
+
+VOMADM="/opt/VRTSsfmh/bin/vomadm"
+XPRTLDCTRL="/opt/VRTSsfmh/adm/xprtldctrl"
+
 
 HAD="/opt/VRTSvcs/bin/had"
 PIDOF="pidof"
@@ -61,7 +63,7 @@ function change_hostname
     #
     if ! [ -f $SYSNAME_PATH ] || ! [ -f $MAIN_CF_PATH ]; then
         echo "ERROR : VCS Config Files Do Not Exist" | $LOGGER
-		return 1
+        return 1
     fi
 	
 	# Get OLD_HOSTNAME from VCS sysname 
@@ -72,39 +74,21 @@ function change_hostname
     #
     if [ "$OLD_HOSTNAME" == "" ]; then
         echo "ERROR : VCS Config [sysname] is empty, can't get OLD_HOSTNAME" | $LOGGER
-		return 1
+        return 1
     fi
 	
     #
     # Check if VIOM <sfm_resolv.conf> files exist 
     #
     if ! [ -f $VIOM_CF_PATH ]; then
-        echo -e "ERROR : VIOM <sfm_resolv.conf> Files Do Not Exist" | $LOGGER
-        return 1
+        echo -e "WARNING : VIOM <sfm_resolv.conf> Files Do Not Exist" | $LOGGER
     fi
-    # Get VIOM [OLD_VIOM] 
- 	OLD_VIOM=$(awk -F '=' '/^cs_config_name/{sub(/^[[:blank:]]*/,"",$2); sub(/;\s*$/,"",$2); print $2}' $VIOM_CF_PATH)
-    # Check if VIOM [OLD_VIOM] is empty
-    #
-    if [ "$OLD_VIOM" == "" ]; then
-        echo "ERROR : VIOM [OLD_VIOM] is empty,  can't get OLD_VIOM" | $LOGGER
-		return 1
-    fi
-	
-	OLD_VIOM_IP=$(awk '/^\s*[^#].*'$OLD_VIOM'/{print $1;exit}' /etc/hosts)
-	NEW_VIOM_IP=$(awk '/^\s*[^#].*'$NEW_VIOM'/{print $1;exit}' /etc/hosts)
-	
+
     #
     # Print parameter information 
     #	
 	echo -e "INFO  : Parameter Information" | $LOGGER
-	echo -e "INFO  : OLD_VIOM" $OLD_VIOM "\nINFO  : OLD_VIOM_IP" $OLD_VIOM_IP "\nINFO  : OLD_HOSTNAME" $OLD_HOSTNAME | $LOGGER
-	echo -e "INFO  : NEW_VIOM" $NEW_VIOM "\nINFO  : NEW_VIOM_IP" $NEW_VIOM_IP "\nINFO  : NEW_HOSTNAME" $NEW_HOSTNAME | $LOGGER
-
-	if [[ $OLD_VIOM_IP = "" ]] || [[ $NEW_VIOM_IP = "" ]]; then
-		echo -e "ERROR : Failed To Get IP Information" | $LOGGER
-		return 1
-	fi
+	echo -e "INFO  : NEW_VIOM" $NEW_VIOM "\nINFO  : NEW_HOSTNAME" $NEW_HOSTNAME | $LOGGER
 
     #
     # Check if VCS is not running
@@ -115,9 +99,8 @@ function change_hostname
 		echo "INFO  : Try to stop VCS --#hastop-- " | $LOGGER
 		OUTPUT=$($HASTOP -local -force 2>&1)
 		if [[ $? -ne 0 ]]; then
-			echo -e "ERROR : hastop failed" | $LOGGER
+			echo -e "WARNING : hastop failed" | $LOGGER
 			echo -e "$OUTPUT" | $LOGGER
-			return 1
 		fi
 		sleep 3
 	fi
@@ -136,33 +119,34 @@ function change_hostname
 	echo "INFO  : sed -i \"s/$OLD_HOSTNAME/$NEW_HOSTNAME/g\" $MAIN_CF_PATH" | $LOGGER
     sed -i "s/$OLD_HOSTNAME/$NEW_HOSTNAME/g" $MAIN_CF_PATH
 	
+	#
+    # Backup VIOM config file 
     #
-    # Change VIOM <sfm_resolv.conf>
+	echo "INFO  : Rename VIOM Config File ... " | $LOGGER
+	echo "INFO  : mv $VIOM_CF_PATH $VIOM_CF_PATH.$(date +%Y%m%d%M%H%S) 2>&1" | $LOGGER
+	OUTPUT=$(mv $VIOM_CF_PATH $VIOM_CF_PATH.$(date +%Y%m%d%M%H%S) 2>&1)
+	if [[ $? -ne 0 ]]; then
+		echo "WARNING : Rename VIOM Config File failed" | $LOGGER
+		echo -e "$OUTPUT" | $LOGGER
+	fi
+
+	#
+    # Try to stop VIOM agent 
     #
-	echo "INFO  : Change VIOM <sfm_resolv.conf> file" | $LOGGER
+	echo "INFO  : Stop VIOM Agent ... " | $LOGGER
+	echo "INFO  : $XPRTLDCTRL stop 2>&1" | $LOGGER
+	OUTPUT=$($XPRTLDCTRL stop 2>&1)
+	if [[ $? -ne 0 ]]; then
+		echo "WARNING : Stop Agent failed, continue!" | $LOGGER
+		echo -e "$OUTPUT" | $LOGGER
+	fi
+	sleep 3
 
-	echo "INFO  : sed -i \"s/$OLD_HOSTNAME/$NEW_HOSTNAME/g\" $VIOM_CF_PATH" | $LOGGER
-	sed -i "s/$OLD_HOSTNAME/$NEW_HOSTNAME/g" $VIOM_CF_PATH
-
-	echo "INFO  : sed -i \"s/$OLD_VIOM/$NEW_VIOM/g\" $VIOM_CF_PATH" | $LOGGER
-    sed -i "s/$OLD_VIOM/$NEW_VIOM/g" $VIOM_CF_PATH
-
-	echo "INFO  : sed -i \"s/$OLD_VIOM_IP/$NEW_VIOM_IP/g\" $VIOM_CF_PATH" | $LOGGER
-	sed -i "s/$OLD_VIOM_IP/$NEW_VIOM_IP/g" $VIOM_CF_PATH
-
-    #
-    #  Start VCS using new config 
-    #
-	#echo "INFO  : Start VCS" | $LOGGER
-	#OUTPUT=$($HASTART 2>&1)
-	#if [[ $? -ne 0 ]]; then
-	#	echo -e "ERROR : hastart Failed" | $LOGGER
-	#	echo -e "INFO  : $OUTPUT" | $LOGGER
-	#	return 1
-	#fi
-	
 }
 
+#
+# main()
+#
 if [ $# -lt 2 ]; then
         echo -e $BASH_SOURCE "VIOM_SERVER_NAME" "NEW_HOSTNAME"
         exit 1

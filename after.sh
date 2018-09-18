@@ -23,9 +23,8 @@
 # -- write <name>.log instead of logger
 # -- add hastart
 # -- ssh to NEW_VIOM to refresh Storage Mapping Information 2018/04/02
-
-
-#VIOM_CF_PATH="/root/conf/sfm_resolv.conf"
+# -- Slient execute, exit only redeploy failed 2018/04/20
+# -- Change some ERROR to WARNING 2018/08/08
 
 VIOM_CF_PATH="/etc/default/sfm_resolv.conf"
 
@@ -54,8 +53,7 @@ function delete_from_viom
     #
     OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM date 2>&1)
     if [[ $? -ne 0 ]]; then
-        echo -e "ERROR : ssh ${NEW_VIOM} failed" | $LOGGER
-        return 1
+        echo -e "WARNING : ssh ${NEW_VIOM} failed" | $LOGGER        
     fi
 
 	#
@@ -71,35 +69,10 @@ function delete_from_viom
 	echo "INFO  : ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM \"$VOMADM host-mgmt --remove --host $NEW_HOSTNAME -f 2>&1\"" | $LOGGER
 	OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM "$VOMADM host-mgmt --remove --host $NEW_HOSTNAME -f 2>&1")
 	if [[ $? -ne 0 ]]; then
-		echo -e "ERROR : Remove Registered Server Failed (Maybe Not Registered Before, Continue!" | $LOGGER
+		echo -e "WARNING : Remove Registered Server Failed. (Maybe Not Registered Before, Continue!)" | $LOGGER
 	fi
 	echo -e "$OUTPUT" | $LOGGER
 	sleep 3
-	
-	#
-    # STOP VIOM agent 
-    #
-	echo "INFO  : Stop VIOM Agent ... " | $LOGGER
-	echo "INFO  : $XPRTLDCTRL stop 2>&1" | $LOGGER
-	OUTPUT=$($XPRTLDCTRL stop 2>&1)
-	if [[ $? -ne 0 ]]; then
-		echo "ERROR : Stop Agent failed" | $LOGGER
-		echo -e "$OUTPUT" | $LOGGER
-		return 1
-	fi
-	sleep 3
-	
-	#
-    # Rename VIOM config file 
-    #
-	echo "INFO  : Rename VIOM Config File ... " | $LOGGER
-	echo "INFO  : mv $VIOM_CF_PATH $VIOM_CF_PATH.$(date +%Y%m%d%M%H%S) 2>&1" | $LOGGER
-	OUTPUT=$(mv $VIOM_CF_PATH $VIOM_CF_PATH.$(date +%Y%m%d%M%H%S) 2>&1)
-	if [[ $? -ne 0 ]]; then
-		echo "ERROR : Stop Agent failed" | $LOGGER
-		echo -e "$OUTPUT" | $LOGGER
-		return 1
-	fi
 
 	#
     # START VIOM agent 
@@ -108,9 +81,8 @@ function delete_from_viom
 	echo "INFO  : $XPRTLDCTRL start 2>&1" | $LOGGER
 	OUTPUT=$($XPRTLDCTRL start 2>&1)
 	if [[ $? -ne 0 ]]; then
-		echo "ERROR : Start Agent Failed" | $LOGGER
+		echo "WARNING : Start Agent Failed" | $LOGGER
 		echo -e "$OUTPUT" | $LOGGER
-		return 1
 	fi
 	sleep 3
     
@@ -135,7 +107,7 @@ function delete_from_viom
 	echo "INFO  : ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM \"$REFRESH_VOM 2>&1\"" | $LOGGER
 	OUTPUT=$(ssh -o PasswordAuthentication=no -o StrictHostKeyChecking=no -l root $NEW_VIOM "$REFRESH_VOM 2>&1")
 	if [[ $? -ne 0 ]]; then
-		echo -e "ERROR : Refresh Storage Mapping Information failed, Continue!" | $LOGGER
+		echo -e "WARNING : Refresh Storage Mapping Information Failed, (Maybe it is already running, Continue!)" | $LOGGER
 	fi
 	echo -e "$OUTPUT" | $LOGGER
 	sleep 3
@@ -153,7 +125,7 @@ else
 	echo -e "INFO  : Begin to Register MH to VIOM" | $LOGGER
 
     #
-    #  Check HAD process, if not start VCS using new config 
+    #  Check HAD process, if not, start VCS using new config 
     #
     if $PIDOF $HAD &> /dev/null; then
         echo "WARNING : VCS HAD Processes Is Running" | $LOGGER
@@ -161,7 +133,7 @@ else
 		echo "INFO  : Try to start VCS --#hastart--" | $LOGGER
 		OUTPUT=$($HASTART 2>&1)
 		if [[ $? -ne 0 ]]; then
-			echo -e "ERROR : hastart Failed" | $LOGGER
+			echo -e "WARNING : hastart Failed" | $LOGGER
 			echo -e "INFO  : $OUTPUT" | $LOGGER
 		fi
 	fi
